@@ -6,7 +6,6 @@ import os
 import time
 import threading as thr
 import sys
-# from lib import YoutubeDL
 
 def parse(file): # OK
 	comment, urllist, dirlisting, dirkey = False, {}, [], "."
@@ -63,6 +62,30 @@ def dl(url, path):
 			print(" \033[93m%s\033[92m%s: Succesfully downloaded \033[93m%s\033[92m after \033[93m%s.%s\033[92m seconds\033[0m" %(time.strftime("[%d %b %Y %H:%M:%S] ", time.gmtime()), attempts, url[1], (time.time_ns() - starttime) // 1000000000, str((time.time_ns() - starttime) % 1000000000)[:4]))
 			return
 
+def listdir_pretty():
+	print("   Directory listing of '%s':\n" %os.getcwd())
+	dirlisting = os.listdir()
+	if dirlisting:
+		for item in dirlisting:
+			if os.path.isdir(item):
+				if isjunction(item):
+					print(" <JUNCTION>  \033[96m" + item + "\033[0m -> [\033[96m%s\033[0m]" %os.path.realpath(item))
+				else:
+					print(" <DIR>       \033[94m" + item + "\033[0m")
+			elif os.path.isfile(item):
+				print(" %s %s" %(sizeformat(os.path.getsize(item)).ljust(11), item))
+			elif os.path.islink(item):
+				print(" <SYMLINK>   \033[96m" + item + "\033[0m -> [\033[96m%s\033[0m]" %os.path.realpath(item))
+			else:
+				print(" <???>       " + item)
+	else:
+		print(" Directory is empty.")
+
+def isjunction(path):
+	if os.path.join(os.path.realpath(os.curdir), path) != os.path.realpath(path):
+		return True
+	return False
+
 def sizeformat(size):
 	table = {
 		"PiB": 1024**5,
@@ -81,7 +104,7 @@ def getfile():
 		raw = input(PROMPT()).strip()
 		if not raw:
 			continue
-		print("")
+		print()
 		if raw.casefold().startswith("?"):
 			raw = raw[1:].split(maxsplit=1)
 			try:
@@ -93,61 +116,63 @@ def getfile():
 					argv = raw[1].strip()
 				except IndexError:
 					argv = None
-				if cmd in ("q", "quit", "exit"):
-					print("Goodbye...")
-					exit(0)
-				elif cmd in ("cd", "chdir"):
-					if argv:
-						path = argv
-					else:
-						path = input("Directory: ")
-					try:
-						os.chdir(os.path.realpath(path))
-					except:
-						print("Error: Could not change directory")
-					else:
-						print("Successfully changed directory to '%s'" %os.getcwd())
-				elif cmd in ("md", "mkdir"):
-					if argv:
-						path = argv
-					else:
-						path = input("Directory: ")
-					try:
-						os.mkdir(path)
-					except:
-						print("Error: Could not create directory")
-					else:
-						print("Successfully created directory '%s'" %os.path.abspath(path))
-				elif cmd in ("ls", "dir"):
-					try:
-						print("   Directory listing of '%s':\n" %os.getcwd())
-						dirlisting = os.listdir()
-						if dirlisting:
-							for item in dirlisting:
-								if os.path.isdir(item):
-									if os.path.abspath(item) == os.path.realpath(item):
-										print(" <DIR>       \033[94m" + item + "\033[0m")
-									else:
-										print(" <JUNCTION>  \033[96m" + item + "\033[0m -> [\033[96m%s\033[0m]" %os.path.realpath(item))
-								elif os.path.isfile(item):
-									print(" %s %s" %(sizeformat(os.path.getsize(item)).ljust(11), item))
-								elif os.path.islink(item):
-									print(" <SYMLINK>   \033[96m" + item + "\033[0m -> [\033[96m%s\033[0m]" %os.path.realpath(item))
-								else:
-									print(" <???>       " + item)
-						else:
-							print(" Directory is empty.")
-					except:
-						print("Error: Could not list directory content")
-				else:
-					print("Error: Unknown command literal")
+				command(cmd, argv)
 		else:
 			check = os.path.abspath(raw)
 			if os.path.isfile(check):
 				return check
 			else:
 				print("Error: The input file either does not exist on the system or is not a file.")
-		print("")
+		print()
+
+def command(cmd, argv):
+	if cmd in ("q", "quit", "exit"):
+		print("Goodbye...")
+		exit(0)
+	elif cmd in ("cd", "chdir"):
+		if argv:
+			path = argv
+		else:
+			path = input("Directory: ")
+			print()
+		if os.path.isdir(path):
+			try:
+				os.chdir(path)
+			except Exception as err:
+				print("Error: Could not change directory")
+			else:
+				print("Successfully changed directory to '%s'" %os.getcwd())
+		else:
+			print("Error: File does not exist or is not a directory")
+	elif cmd in ("md", "mkdir"):
+		if argv:
+			path = argv
+		else:
+			path = input("Directory: ")
+			print()
+		try:
+			os.mkdir(path)
+		except:
+			print("Error: Could not create directory")
+		else:
+			print("Successfully created directory '%s'" %os.path.abspath(path))
+	elif cmd in ("ls", "dir"):
+		if argv:
+			workingdir = os.getcwd()
+			try:
+				os.chdir(argv)
+			except:
+				print("Error: Unable to open directory")
+				return
+		else:
+			workingdir = os.curdir
+		try:
+			listdir_pretty()
+		except:
+			print("Error: Could not list directory content")
+		os.chdir(workingdir)
+	else:
+		print("Error: Unknown command literal")
 
 def choice():
 	while True:
@@ -166,9 +191,13 @@ def choice():
 def main():
 	try:
 		with open(getfile(), "r", encoding="utf-8") as file:
+			workingdir = os.getcwd()
 			urllist = parse(file)
 	except UnicodeError:
 		print("Error: Could not decode Unicode file.\n")
+		return
+	except PermissionError:
+		print("Error: The current account does not have read permission for this file.\n")
 		return
 
 	if urllist:
@@ -185,7 +214,7 @@ def main():
 
 	rootdir = os.getcwd()
 
-	dlthreads = {}
+	dlthreads = []
 
 	for directory in urllist:
 		os.chdir(rootdir)
@@ -197,22 +226,24 @@ def main():
 				continue
 		os.chdir(directory)
 		print("Downloading to %s:" %directory)
-		for index, downloader in enumerate(urllist[directory]):
+		for downloader in urllist[directory]:
 			time.sleep(0.1)
 			print("\tDownloading %s..." %downloader[1])
-			dlthreads["Download Thread %s" %index] = thr.Thread(target=dl, kwargs={"url": downloader, "path": os.getcwd()})
-			dlthreads["Download Thread %s" %index].start()
-
-	for threadkey in dlthreads:
-		dlthreads[threadkey].join()
+			dlthreads.append(thr.Thread(target=dl, kwargs={"url": downloader, "path": os.getcwd()}))
+			dlthreads[-1].start()
+	for index, downloader in enumerate(dlthreads):
+		downloader.join()
 #		except KeyboardInterrupt:
 #			time.sleep(1)
 #			print("User Interrupt: Aborting running operations due to Ctrl-C keystroke...")
 #			dlthreads.clear()
-#		del dlthreads[threadkey]
+		dlthreads[index] = None
 
 	print("\nAll Files Downloaded\n")
-	os.chdir(rootdir)
+	try:
+		os.chdir(workingdir)
+	except:
+		print("Could not change to previous directory: %s" %workingdir)
 
 
 print("Xtraordinary Media Downloader version 1.0\nCopyright (c) 2022 by BinaryIsBloat\nAll rights reserved.\n")
