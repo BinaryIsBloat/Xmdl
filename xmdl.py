@@ -215,7 +215,7 @@ def main():
 	os.chdir(rootdir)
 
 
-print("YouTube Batch Downloader version 1.0\nCopyright (c) 2022 by RandomGuyWithoutY\nAll rights reserved.\n")
+print("Xtraordinary Media Downloadel version 1.0\nCopyright (c) 2022 by BinaryIsBloat\nAll rights reserved.\n")
 
 print("Updating youtube-dl...")
 def PROMPT():
