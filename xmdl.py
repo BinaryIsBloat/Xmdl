@@ -1,7 +1,4 @@
-if __name__ != "__main__":
-	print("Not a module")
-	raise ImportError()
-
+#!/usr/bin/python3
 import os
 import time
 import threading as thr
