@@ -1,2 +1,6 @@
 *.pyc
 __pycache__
+/test
+/test.py
+/spec
+/youtube_dl
